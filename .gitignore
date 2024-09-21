@@ -43,5 +43,6 @@ bin/
 
 docker-compose.yml
 
-src
+
 .idea
+/src/
