@@ -1,5 +1,6 @@
 package io.github.ufukhalis.hermessaging.kafka
 
+import io.github.ufukhalis.hermessaging.core.model.MessageAsyncRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageResult
 import io.github.ufukhalis.hermessaging.core.properties.HermesProperties
@@ -11,6 +12,8 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecords
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class KafkaSubscriberClient<K, V>(
     hermesProperties: HermesProperties<K, V>
@@ -19,6 +22,8 @@ class KafkaSubscriberClient<K, V>(
     private val executor = Executors.newSingleThreadExecutor()
 
     private val kafkaConsumer: KafkaConsumer<K, V>
+
+    private var isRunning: AtomicBoolean = AtomicBoolean(true)
 
     init {
         val properties = hermesProperties as KafkaSubscriberProperties<K, V>
@@ -49,13 +54,13 @@ class KafkaSubscriberClient<K, V>(
         }
     }
 
-    override fun subscribeAsync(messageRequest: MessageRequest<K, V>) {
+    override fun subscribeAsync(messageRequest: MessageAsyncRequest<K, V>) {
         executor.submit {
+            isRunning.set(true)
             val kafkaRequest = messageRequest as KafkaAsyncSubscriberRequest
             kafkaConsumer.subscribe(kafkaRequest.destinations)
-            while (true) {
+            while (isRunning.get()) {
                 val consumerRecords = kafkaConsumer.poll(kafkaRequest.timeout)
-                println("polling...$consumerRecords")
                 for (record in consumerRecords) {
                     kafkaRequest.callback.invoke(MessageResult.Success(record))
                 }
@@ -64,6 +69,13 @@ class KafkaSubscriberClient<K, V>(
     }
 
     override fun close() {
+        isRunning.set(false)
+
+        executor.shutdown()
+        if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+            executor.shutdownNow()
+        }
+
         kafkaConsumer.close()
     }
 }

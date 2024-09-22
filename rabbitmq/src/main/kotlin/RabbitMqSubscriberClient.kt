@@ -1,4 +1,5 @@
 import com.rabbitmq.client.*
+import io.github.ufukhalis.hermessaging.core.model.MessageAsyncRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageResult
 import io.github.ufukhalis.hermessaging.core.properties.HermesProperties
@@ -44,7 +45,7 @@ class RabbitMqSubscriberClient(
 
     fun Envelope.ack(multiple: Boolean = false) = channel.basicAck(this.deliveryTag, multiple)
 
-    override fun subscribeAsync(messageRequest: MessageRequest<Nothing, String>) {
+    override fun subscribeAsync(messageRequest: MessageAsyncRequest<Nothing, String>) {
         executor.submit {
             val rabbitMqRequest = messageRequest as RabbitMqAsyncSubscriberRequest
             channel.basicConsume(rabbitMqRequest.queue, rabbitMqRequest.autoAck, rabbitMqRequest.callback)
