@@ -1,5 +1,6 @@
 package io.github.ufukhalis.hermessaging.kafka
 
+import io.github.ufukhalis.hermessaging.core.Util.withRetry
 import io.github.ufukhalis.hermessaging.core.model.MessageAsyncRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageResult
@@ -26,28 +27,30 @@ class KafkaSubscriberClient<K, V>(
     private var isRunning: AtomicBoolean = AtomicBoolean(true)
 
     init {
-        val properties = hermesProperties as KafkaSubscriberProperties<K, V>
-        val keyDeserializer = properties.keyDeserializer
-        val valueDeserializer = properties.valueDeserializer
+        require(hermesProperties is KafkaSubscriberProperties)
+
+        val keyDeserializer = hermesProperties.keyDeserializer
+        val valueDeserializer = hermesProperties.valueDeserializer
 
         val combinedProperties = mapOf(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to properties.brokers.joinToString(),
-            ConsumerConfig.GROUP_ID_CONFIG to properties.groupId,
-            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to properties.offset,
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to hermesProperties.brokers.joinToString(),
+            ConsumerConfig.GROUP_ID_CONFIG to hermesProperties.groupId,
+            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to hermesProperties.offset,
 
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to keyDeserializer::class.java.name,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to valueDeserializer::class.java.name,
-        ) + properties.additionalConfig
+        ) + hermesProperties.additionalConfig
 
         kafkaConsumer = KafkaConsumer(combinedProperties)
     }
 
 
     override fun subscribe(messageRequest: MessageRequest<K, V>): MessageResult<ConsumerRecords<K, V>> {
-        val kafkaRequest = messageRequest as KafkaSubscriberRequest
-        kafkaConsumer.subscribe(kafkaRequest.destinations)
+        require(messageRequest is KafkaSubscriberRequest)
+
+        kafkaConsumer.subscribe(messageRequest.destinations)
         try {
-            val consumerRecords = kafkaConsumer.poll(kafkaRequest.timeout)
+            val consumerRecords = kafkaConsumer.poll(messageRequest.timeout)
             return MessageResult.Success(consumerRecords)
         } catch (ex: Exception) {
             return MessageResult.Failure(ex)
@@ -55,14 +58,21 @@ class KafkaSubscriberClient<K, V>(
     }
 
     override fun subscribeAsync(messageRequest: MessageAsyncRequest<K, V>) {
+        require(messageRequest is KafkaAsyncSubscriberRequest)
+
         executor.submit {
             isRunning.set(true)
-            val kafkaRequest = messageRequest as KafkaAsyncSubscriberRequest
-            kafkaConsumer.subscribe(kafkaRequest.destinations)
+            kafkaConsumer.subscribe(messageRequest.destinations)
             while (isRunning.get()) {
-                val consumerRecords = kafkaConsumer.poll(kafkaRequest.timeout)
-                for (record in consumerRecords) {
-                    kafkaRequest.callback.invoke(MessageResult.Success(record))
+                try {
+                    withRetry(retryPolicy = messageRequest.retryPolicy) {
+                        val consumerRecords = kafkaConsumer.poll(messageRequest.timeout)
+                        for (record in consumerRecords) {
+                            messageRequest.callback.invoke(MessageResult.Success(record))
+                        }
+                    }
+                } catch (ex: Exception) {
+                    messageRequest.callback.invoke(MessageResult.Failure(ex))
                 }
             }
         }

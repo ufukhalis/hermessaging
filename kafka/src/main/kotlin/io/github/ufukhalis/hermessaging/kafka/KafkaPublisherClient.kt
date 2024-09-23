@@ -20,26 +20,27 @@ class KafkaPublisherClient<K, V>(
     private val producer: KafkaProducer<K, V>
 
     init {
-        val properties = hermesProperties as KafkaPublisherProperties<K, V>
-        val keySerializer = properties.keySerializer
-        val valueSerializer = properties.valueSerializer
+        require(hermesProperties is KafkaPublisherProperties)
+
+        val keySerializer = hermesProperties.keySerializer
+        val valueSerializer = hermesProperties.valueSerializer
 
         val combinedProperties = mapOf(
-            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to properties.brokers.joinToString(),
+            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to hermesProperties.brokers.joinToString(),
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to keySerializer::class.java.name,
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to valueSerializer::class.java.name,
-        ) + properties.additionalConfig
+        ) + hermesProperties.additionalConfig
 
         producer = KafkaProducer(combinedProperties, keySerializer, valueSerializer)
     }
 
     override fun publish(messageRequest: MessageRequest<K, V>): CompletableFuture<MessageResult<RecordMetadata>> {
-        val kafkaPublisherRequest = messageRequest as KafkaPublisherRequest<K, V>
+        require(messageRequest is KafkaPublisherRequest)
 
         val producerRecord = ProducerRecord(
-            kafkaPublisherRequest.destination,
-            kafkaPublisherRequest.key,
-            kafkaPublisherRequest.content
+            messageRequest.destination,
+            messageRequest.key,
+            messageRequest.content
         )
 
         return producer.send(producerRecord)

@@ -1,5 +1,6 @@
 package io.github.ufukhalis.hermessaging.kafka.model
 
+import io.github.ufukhalis.hermessaging.core.Util
 import io.github.ufukhalis.hermessaging.core.model.MessageAsyncRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageRequest
 import io.github.ufukhalis.hermessaging.core.model.MessageResult
@@ -20,5 +21,6 @@ data class KafkaSubscriberRequest<K, V>(
 data class KafkaAsyncSubscriberRequest<K, V>(
     val destinations: List<String>,
     val timeout: Duration,
+    val retryPolicy: Util.RetryPolicy = Util.RetryPolicy(),
     val callback: (message: MessageResult<ConsumerRecord<K, V>>) -> Unit
 ) : MessageAsyncRequest<K, V>()

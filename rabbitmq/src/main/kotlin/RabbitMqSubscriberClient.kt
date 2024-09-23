@@ -9,7 +9,6 @@ import model.RabbitMqSubscriberRequest
 import properties.RabbitMqProperties
 import java.util.concurrent.Executors
 
-
 class RabbitMqSubscriberClient(
     hermesProperties: HermesProperties<Nothing, Nothing>
 ) : SubscriberClient<Nothing, String, GetResponse> {
@@ -21,9 +20,10 @@ class RabbitMqSubscriberClient(
     private val channel: Channel
 
     init {
-        val rabbitMqProperties = hermesProperties as RabbitMqProperties
+        require(hermesProperties is RabbitMqProperties)
+
         connectionFactory = ConnectionFactory().apply {
-            host = rabbitMqProperties.host
+            host = hermesProperties.host
 
         }
         connection = connectionFactory.newConnection()
@@ -31,9 +31,10 @@ class RabbitMqSubscriberClient(
     }
 
     override fun subscribe(messageRequest: MessageRequest<Nothing, String>): MessageResult<GetResponse> {
-        val rabbitMqRequest = messageRequest as RabbitMqSubscriberRequest
+        require(messageRequest is RabbitMqSubscriberRequest)
+
         try {
-            val response = channel.basicGet(rabbitMqRequest.queue, rabbitMqRequest.autoAck)
+            val response = channel.basicGet(messageRequest.queue, messageRequest.autoAck)
             return MessageResult.Success(response)
         } catch (ex: Exception) {
             return MessageResult.Failure(ex)
@@ -46,9 +47,10 @@ class RabbitMqSubscriberClient(
     fun Envelope.ack(multiple: Boolean = false) = channel.basicAck(this.deliveryTag, multiple)
 
     override fun subscribeAsync(messageRequest: MessageAsyncRequest<Nothing, String>) {
+        require(messageRequest is RabbitMqAsyncSubscriberRequest)
+
         executor.submit {
-            val rabbitMqRequest = messageRequest as RabbitMqAsyncSubscriberRequest
-            channel.basicConsume(rabbitMqRequest.queue, rabbitMqRequest.autoAck, rabbitMqRequest.callback)
+            channel.basicConsume(messageRequest.queue, messageRequest.autoAck, messageRequest.callback)
         }
     }
 

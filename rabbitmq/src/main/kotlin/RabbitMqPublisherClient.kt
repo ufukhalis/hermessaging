@@ -19,21 +19,22 @@ class RabbitMqPublisherClient(
     private val channel: Channel
 
     init {
-        val rabbitMqProperties = hermesProperties as RabbitMqProperties
-        connectionFactory = ConnectionFactory().apply { host = rabbitMqProperties.host }
+        require(hermesProperties is RabbitMqProperties)
+
+        connectionFactory = ConnectionFactory().apply { host = hermesProperties.host }
         connection = connectionFactory.newConnection()
         channel = connection.createChannel()
     }
 
     override fun publish(messageRequest: MessageRequest<Nothing, String>): CompletableFuture<MessageResult<String>> {
-        val callable = {
-            val rabbitMqMessageRequest = messageRequest as RabbitMqPublisherRequest
+        require(messageRequest is RabbitMqPublisherRequest)
 
+        val callable = {
             channel.basicPublish(
-                rabbitMqMessageRequest.exchange,
-                rabbitMqMessageRequest.queue,
-                rabbitMqMessageRequest.properties,
-                rabbitMqMessageRequest.content.toByteArray(StandardCharsets.UTF_8)
+                messageRequest.exchange,
+                messageRequest.queue,
+                messageRequest.properties,
+                messageRequest.content.toByteArray(StandardCharsets.UTF_8)
             )
         }
         return CompletableFuture.supplyAsync {

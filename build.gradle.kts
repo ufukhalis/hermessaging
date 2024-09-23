@@ -14,11 +14,6 @@ dependencies {
     implementation(project(":rabbitmq"))
     implementation(project(":kafka"))
 
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.0")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.0")
-    implementation("org.apache.kafka:kafka-clients:3.8.0")
-    implementation("com.rabbitmq:amqp-client:5.21.0")
-
     testImplementation(kotlin("test"))
 }
 
